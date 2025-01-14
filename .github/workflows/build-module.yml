@@ -1,4 +1,3 @@
-runs-on: self-hosted
 name: Create Release on Tag
 
 on:
@@ -13,7 +12,7 @@ on:
 
 jobs:
   generate-config:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     outputs:
       job-config: ${{ steps.generate-config.outputs.job-config }}
     steps:
@@ -46,7 +45,7 @@ jobs:
 
   build:
     name: "v${{ matrix.build_env.tag }} - ${{ matrix.build_env.pkgarch}} :: ${{ matrix.build_env.target}}/${{ matrix.build_env.subtarget}} build"
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: generate-config
     strategy:
       matrix:
@@ -54,7 +53,8 @@ jobs:
       fail-fast: false
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout OpenWRT repository
+        uses: actions/checkout@v4
         with:
           repository: openwrt/openwrt
           ref: v${{ matrix.build_env.tag }}
@@ -70,7 +70,6 @@ jobs:
           key: ${{ runner.os }}-build-vm4-${{ env.cache-name }}
 
       - name: Building kernel and tools
-        #if: ${{ steps.cache-tools-kernel.outputs.cache-hit != 'true' }}
         run: |
           echo "pkgarch: ${{ matrix.build_env.pkgarch}}, target:${{ matrix.build_env.target}}, subtarget: ${{ matrix.build_env.subtarget}}"
 
@@ -96,19 +95,19 @@ jobs:
           cat ./build_dir/target-*/linux-*/linux-*/.vermagic || true
 
           echo "    > make toolchain/install"
-          make toolchain/install  -i -j `nproc`
+          make toolchain/install -i -j `nproc`
 
           cat ./build_dir/target-*/linux-*/linux-*/.vermagic || true
 
-          # compile kernel module
+          # Compile kernel module
           echo "    > make target/linux/compile"
-          make target/linux/compile  -i -j `nproc` V=s
+          make target/linux/compile -i -j `nproc` V=s
 
           VERMAGIC=`cat ./build_dir/target-*/linux-*/linux-*/.vermagic`
           VERMAGIC_EXPECTED=${{ matrix.build_env.vermagic }}
 
           if [ "$VERMAGIC" != "$VERMAGIC_EXPECTED" ]; then
-            echo Vermagic mismatch: $VERMAGIC, expected $VERMAGIC_EXPECTED
+            echo "Vermagic mismatch: $VERMAGIC, expected $VERMAGIC_EXPECTED"
             exit 1
           fi
 
@@ -120,7 +119,7 @@ jobs:
           VERMAGIC_EXPECTED=${{ matrix.build_env.vermagic }}
 
           if [ "$VERMAGIC" != "$VERMAGIC_EXPECTED" ]; then
-            echo Vermagic mismatch: $VERMAGIC, expected $VERMAGIC_EXPECTED
+            echo "Vermagic mismatch: $VERMAGIC, expected $VERMAGIC_EXPECTED"
             exit 1
           fi
 
@@ -136,7 +135,7 @@ jobs:
 
       - name: Prepare artifacts
         run: |
-          tag_name=${{  github.ref_name }}
+          tag_name=${{ github.ref_name }}
           mkdir -p awgrelease
           postfix="v${{ matrix.build_env.tag }}_${{ matrix.build_env.pkgarch}}_${{ matrix.build_env.target}}_${{ matrix.build_env.subtarget}}"
           cp bin/packages/${{ matrix.build_env.pkgarch }}/awgopenwrt/amneziawg-tools_*.ipk awgrelease/amneziawg-tools_${postfix}.ipk
