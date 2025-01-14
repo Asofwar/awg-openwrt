@@ -27,19 +27,20 @@ jobs:
       - name: Get OpenWRT version from tag
         id: get_version
         run: |
-          if [ "${{ github.event_name }}" == "workflow_call" ]; then
-            echo "VERSION=${{ inputs.tag_name }}" >> $GITHUB_ENV
-            echo "VERSION=${VERSION#v}" >> $GITHUB_ENV
-          else
-            echo "VERSION=${GITHUB_REF/refs\/tags\/v/}" >> $GITHUB_ENV
-          fi
+          if ($Env:GITHUB_EVENT_NAME -eq "workflow_call") {
+            $VERSION = "${{ inputs.tag_name }}"
+            echo "VERSION=$VERSION" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          } else {
+            $VERSION = $Env:GITHUB_REF -replace 'refs/tags/v', ''
+            echo "VERSION=$VERSION" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          }
 
       - name: Install dependencies
         run: npm install
 
       - name: Generate Job Config
         id: generate-config
-        run: node index.js ${{ env.VERSION }}
+        run: node index.js $env:VERSION
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -74,58 +75,55 @@ jobs:
           echo "pkgarch: ${{ matrix.build_env.pkgarch}}, target:${{ matrix.build_env.target}}, subtarget: ${{ matrix.build_env.subtarget}}"
 
           # Setup & install feeds
-          wget https://downloads.openwrt.org/releases/${{ matrix.build_env.tag }}/targets/${{ matrix.build_env.target}}/${{ matrix.build_env.subtarget}}/feeds.buildinfo -O feeds.conf
-          echo "src-git awgopenwrt https://github.com/Slava-Shchipunov/awg-openwrt.git" >> ./feeds.conf
-          ./scripts/feeds update && ./scripts/feeds install -a
+          Invoke-WebRequest -Uri "https://downloads.openwrt.org/releases/${{ matrix.build_env.tag }}/targets/${{ matrix.build_env.target}}/${{ matrix.build_env.subtarget}}/feeds.buildinfo" -OutFile feeds.conf
+          Add-Content -Path feeds.conf -Value "src-git awgopenwrt https://github.com/Slava-Shchipunov/awg-openwrt.git"
+          .\scripts\feeds update
+          .\scripts\feeds install -a
 
           # Setup config with AWG and dependencies
-          wget https://downloads.openwrt.org/releases/${{ matrix.build_env.tag }}/targets/${{ matrix.build_env.target}}/${{ matrix.build_env.subtarget}}/config.buildinfo -O .config
-          echo "CONFIG_PACKAGE_kmod-amneziawg=m" >> .config
-          echo "CONFIG_PACKAGE_amneziawg-tools=y" >> .config
-          echo "CONFIG_PACKAGE_luci-app-amneziawg=y" >> .config
-          echo "CONFIG_PACKAGE_kmod-crypto-lib-chacha20=m" >> .config
-          echo "CONFIG_PACKAGE_kmod-crypto-lib-chacha20poly1305=m" >> .config
-          echo "CONFIG_PACKAGE_kmod-crypto-chacha20poly1305=m" >> .config
+          Invoke-WebRequest -Uri "https://downloads.openwrt.org/releases/${{ matrix.build_env.tag }}/targets/${{ matrix.build_env.target}}/${{ matrix.build_env.subtarget}}/config.buildinfo" -OutFile .config
+          Add-Content -Path .config -Value "CONFIG_PACKAGE_kmod-amneziawg=m"
+          Add-Content -Path .config -Value "CONFIG_PACKAGE_amneziawg-tools=y"
+          Add-Content -Path .config -Value "CONFIG_PACKAGE_luci-app-amneziawg=y"
+          Add-Content -Path .config -Value "CONFIG_PACKAGE_kmod-crypto-lib-chacha20=m"
+          Add-Content -Path .config -Value "CONFIG_PACKAGE_kmod-crypto-lib-chacha20poly1305=m"
+          Add-Content -Path .config -Value "CONFIG_PACKAGE_kmod-crypto-chacha20poly1305=m"
 
           make defconfig
 
           echo "    > make tools/install"
-          make tools/install -i -j `nproc`
+          make tools/install -i -j $Env:NUMBER_OF_PROCESSORS
 
-          cat ./build_dir/target-*/linux-*/linux-*/.vermagic || true
+          Get-Content .\build_dir\target-*\linux-*\linux-*\.vermagic | Write-Host
 
           echo "    > make toolchain/install"
-          make toolchain/install -i -j `nproc`
+          make toolchain/install -i -j $Env:NUMBER_OF_PROCESSORS
 
-          cat ./build_dir/target-*/linux-*/linux-*/.vermagic || true
+          Get-Content .\build_dir\target-*\linux-*\linux-*\.vermagic | Write-Host
 
           # Compile kernel module
           echo "    > make target/linux/compile"
-          make target/linux/compile -i -j `nproc` V=s
+          make target/linux/compile -i -j $Env:NUMBER_OF_PROCESSORS V=s
 
-          VERMAGIC=`cat ./build_dir/target-*/linux-*/linux-*/.vermagic`
-          VERMAGIC_EXPECTED=${{ matrix.build_env.vermagic }}
-
-          if [ "$VERMAGIC" != "$VERMAGIC_EXPECTED" ]; then
-            echo "Vermagic mismatch: $VERMAGIC, expected $VERMAGIC_EXPECTED"
+          $VERMAGIC = Get-Content .\build_dir\target-*\linux-*\linux-*\.vermagic
+          if ($VERMAGIC -ne "${{ matrix.build_env.vermagic }}") {
+            Write-Host "Vermagic mismatch: $VERMAGIC, expected ${{ matrix.build_env.vermagic }}"
             exit 1
-          fi
+          }
 
       - name: Build AmneziaWG
         run: |
-          VERMAGIC=`cat ./build_dir/target-*/linux-*/linux-*/.vermagic`
-          echo "Vermagic: $VERMAGIC"
+          $VERMAGIC = Get-Content .\build_dir\target-*\linux-*\linux-*\.vermagic
+          Write-Host "Vermagic: $VERMAGIC"
 
-          VERMAGIC_EXPECTED=${{ matrix.build_env.vermagic }}
-
-          if [ "$VERMAGIC" != "$VERMAGIC_EXPECTED" ]; then
-            echo "Vermagic mismatch: $VERMAGIC, expected $VERMAGIC_EXPECTED"
+          if ($VERMAGIC -ne "${{ matrix.build_env.vermagic }}") {
+            Write-Host "Vermagic mismatch: $VERMAGIC, expected ${{ matrix.build_env.vermagic }}"
             exit 1
-          fi
+          }
 
           # Ignore kmod build for some targets, replace with the awg-go
-          make package/kmod-amneziawg/{clean,download,prepare} V=s || true
-          make package/kmod-amneziawg/compile V=s || true
+          make package/kmod-amneziawg/{clean,download,prepare} V=s || $true
+          make package/kmod-amneziawg/compile V=s || $true
 
           make package/luci-app-amneziawg/{clean,download,prepare}
           make package/luci-app-amneziawg/compile V=s
@@ -135,12 +133,12 @@ jobs:
 
       - name: Prepare artifacts
         run: |
-          tag_name=${{ github.ref_name }}
-          mkdir -p awgrelease
-          postfix="v${{ matrix.build_env.tag }}_${{ matrix.build_env.pkgarch}}_${{ matrix.build_env.target}}_${{ matrix.build_env.subtarget}}"
-          cp bin/packages/${{ matrix.build_env.pkgarch }}/awgopenwrt/amneziawg-tools_*.ipk awgrelease/amneziawg-tools_${postfix}.ipk
-          cp bin/packages/${{ matrix.build_env.pkgarch }}/awgopenwrt/luci-app-amneziawg_*.ipk awgrelease/luci-app-amneziawg_${postfix}.ipk
-          cp bin/targets/${{ matrix.build_env.target}}/${{ matrix.build_env.subtarget}}/packages/kmod-amneziawg_*.ipk awgrelease/kmod-amneziawg_${postfix}.ipk
+          $tag_name = $env:GITHUB_REF_NAME
+          mkdir awgrelease
+          $postfix = "v${{ matrix.build_env.tag }}_${{ matrix.build_env.pkgarch}}_${{ matrix.build_env.target}}_${{ matrix.build_env.subtarget}}"
+          Copy-Item -Path "bin/packages/${{ matrix.build_env.pkgarch }}/awgopenwrt/amneziawg-tools_*.ipk" -Destination "awgrelease/amneziawg-tools_$postfix.ipk"
+          Copy-Item -Path "bin/packages/${{ matrix.build_env.pkgarch }}/awgopenwrt/luci-app-amneziawg_*.ipk" -Destination "awgrelease/luci-app-amneziawg_$postfix.ipk"
+          Copy-Item -Path "bin/targets/${{ matrix.build_env.target}}/${{ matrix.build_env.subtarget}}/packages/kmod-amneziawg_*.ipk" -Destination "awgrelease/kmod-amneziawg_$postfix.ipk"
 
       - name: Release
         uses: softprops/action-gh-release@v1
