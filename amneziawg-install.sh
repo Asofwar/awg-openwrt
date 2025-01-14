@@ -16,7 +16,7 @@ install_awg_packages() {
     SUBTARGET=$(ubus call system board | jsonfilter -e '@.release.target' | cut -d '/' -f 2)
     VERSION=$(ubus call system board | jsonfilter -e '@.release.version')
     PKGPOSTFIX="_v${VERSION}_${PKGARCH}_${TARGET}_${SUBTARGET}.ipk"
-    BASE_URL="https://github.com/Slava-Shchipunov/awg-openwrt/releases/download/"
+    BASE_URL="https://github.com/Asofwar/awg-openwrt/releases/download/"  # Обновлена ссылка на ваш репозиторий
 
     AWG_DIR="/tmp/amneziawg"
     mkdir -p "$AWG_DIR"
@@ -38,7 +38,7 @@ install_awg_packages() {
         opkg install "$AWG_DIR/$KMOD_AMNEZIAWG_FILENAME"
 
         if [ $? -eq 0 ]; then
-            echo "kmod-amneziawg file downloaded successfully"
+            echo "kmod-amneziawg file installed successfully"
         else
             echo "Error installing kmod-amneziawg. Please, install kmod-amneziawg manually and run the script again"
             exit 1
@@ -62,7 +62,7 @@ install_awg_packages() {
         opkg install "$AWG_DIR/$AMNEZIAWG_TOOLS_FILENAME"
 
         if [ $? -eq 0 ]; then
-            echo "amneziawg-tools file downloaded successfully"
+            echo "amneziawg-tools file installed successfully"
         else
             echo "Error installing amneziawg-tools. Please, install amneziawg-tools manually and run the script again"
             exit 1
@@ -86,7 +86,7 @@ install_awg_packages() {
         opkg install "$AWG_DIR/$LUCI_APP_AMNEZIAWG_FILENAME"
 
         if [ $? -eq 0 ]; then
-            echo "luci-app-amneziawg file downloaded successfully"
+            echo "luci-app-amneziawg file installed successfully"
         else
             echo "Error installing luci-app-amneziawg. Please, install luci-app-amneziawg manually and run the script again"
             exit 1
