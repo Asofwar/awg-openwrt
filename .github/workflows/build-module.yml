@@ -1,4 +1,3 @@
-runs-on: self-hosted
 name: Create Release on Tag
 
 on:
