@@ -8,14 +8,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Asofwar/awg-openwrt.git"  // Заменил на ваш репозиторий
+    "url": "git+https://github.com/Asofwar/awg-openwrt.git"
   },
-  "author": "Asofwar",  // Обновите автора на ваш ник
+  "author": "Asofwar",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/Asofwar/awg-openwrt/issues"  // Заменил на ваш репозиторий
+    "url": "https://github.com/Asofwar/awg-openwrt/issues"
   },
-  "homepage": "https://github.com/Asofwar/awg-openwrt#readme",  // Заменил на ваш репозиторий
+  "homepage": "https://github.com/Asofwar/awg-openwrt#readme",
   "dependencies": {
     "@actions/core": "^1.10.1",
     "axios": "^1.3.1",
